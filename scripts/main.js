@@ -487,6 +487,33 @@ function processNodeLine(inp, block, kind, sx, sy, ex, ey, lineRot0){
     return true;
 }
 
+function computeLine(inp, block, fam, kind, sx, sy, cx, cy, lineRot0){
+    const plans = inp.linePlans;
+    if(fam != null){
+        updateLine(inp, sx, sy, cx, cy, false);
+        const obs = obstacles(inp);
+        let hit = false;
+        for(let i = 0; i < plans.size && !hit; i++){
+            let p = plans.get(i);
+            if(obs.at(p.x, p.y) != null) hit = true;
+        }
+        if(hit){
+            const raw = rawPoints(block, sx, sy, cx, cy, obs);
+            let same = raw.points.length == plans.size;
+            for(let i = 0; same && i < plans.size; i++){
+                let p = plans.get(i);
+                same = p.x == raw.points[i].x && p.y == raw.points[i].y;
+            }
+            if(!same) setLinePlans(inp, block, raw.points, raw, sx, sy, cx, cy, lineRot0);
+            processLine(inp, fam, obs);
+        }else{
+            updateLine(inp, sx, sy, cx, cy, true);
+        }
+    }else{
+        if(!processNodeLine(inp, block, kind, sx, sy, cx, cy, lineRot0)) updateLine(inp, sx, sy, cx, cy, true);
+    }
+}
+
 const PLACING = PlaceMode.placing;
 let ourFirst = null;
 let famBlock = null, famCached = null, kindCached = null;
@@ -519,29 +546,7 @@ function refresh(inp){
     const sx = inp.selectX, sy = inp.selectY;
     const lineRot0 = Number(fLineRot.getInt(inp.line));
     try{
-        if(fam != null){
-            updateLine(inp, sx, sy, cx, cy, false);
-            const obs = obstacles(inp);
-            let hit = false;
-            for(let i = 0; i < plans.size && !hit; i++){
-                let p = plans.get(i);
-                if(obs.at(p.x, p.y) != null) hit = true;
-            }
-            if(hit){
-                const raw = rawPoints(block, sx, sy, cx, cy, obs);
-                let same = raw.points.length == plans.size;
-                for(let i = 0; same && i < plans.size; i++){
-                    let p = plans.get(i);
-                    same = p.x == raw.points[i].x && p.y == raw.points[i].y;
-                }
-                if(!same) setLinePlans(inp, block, raw.points, raw, sx, sy, cx, cy, lineRot0);
-                processLine(inp, fam, obs);
-            }else{
-                updateLine(inp, sx, sy, cx, cy, true);
-            }
-        }else{
-            if(!processNodeLine(inp, block, kind, sx, sy, cx, cy, lineRot0)) updateLine(inp, sx, sy, cx, cy, true);
-        }
+        computeLine(inp, block, fam, kind, sx, sy, cx, cy, lineRot0);
     }catch(e){
         report(e);
         try{
@@ -563,6 +568,11 @@ function guarded(){
     }
     if(mUpdateLine == null || !Core.settings.getBool(PREF_ON, true)) return;
     try{
+        const lt = PROPS.get(TURN_KEY);
+        if(lt != null && lt.owns()){
+            lastMx = NaN;
+            return;
+        }
         refresh(inp);
     }catch(e){
         report(e);
@@ -571,6 +581,31 @@ function guarded(){
 
 Events.run(Trigger.update, guarded);
 Events.run(Trigger.preDraw, guarded);
+
+const PROPS = java.lang.System.getProperties();
+const TURN_KEY = "cur1e.line-turn.v1";
+let apiBlock = null, apiFam = null;
+
+function straight(inp, x1, y1, x2, y2){
+    if(mUpdateLine == null || !Core.settings.getBool(PREF_ON, true) || !Core.settings.getBool("blockreplace")
+        || Vars.player.unit() == null) return false;
+    const block = inp.block;
+    if(block == null) return false;
+    if(block != apiBlock){
+        apiBlock = block;
+        apiFam = lineFamily(block);
+    }
+    if(apiFam == null) return false;
+    try{
+        computeLine(inp, block, apiFam, null, x1, y1, x2, y2, Number(fLineRot.getInt(inp.line)));
+        return true;
+    }catch(e){
+        report(e);
+        return false;
+    }
+}
+
+PROPS.put("cur1e.line-bridge.v1", {version: 1, straight: straight});
 
 cur1e.settings({mod: "line-bridge", title: "line-bridge.settings.title", icon: "distribution", build: t => {
     t.checkPref(PREF_ON, true);

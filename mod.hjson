@@ -1,7 +1,7 @@
 name: line-bridge
 displayName: Line Bridge
 author: m3rcur1e
-version: "1.0.0"
+version: "1.0.1"
 minGameVersion: "160"
 hidden: true
 description: "Dragging a conveyor, duct or conduit line across queued build plans no longer cuts them: the line goes over planned blocks and construction sites with bridges and junctions, the same as over built ones. Bridge and power node chains skip planned tiles too. Can be switched off in Settings."
